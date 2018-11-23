@@ -1,0 +1,11 @@
+import os, shutil
+'''根据dir1目录中的文件名，把dir2目录中和dir1目录中文件名相同的文件复制到另一个文件夹中'''
+dir1 = r"F:\Pycharm\yaya\leeg100"#目录地址
+dir2 = r"F:\Pycharm\yaya\reeg"#需要复制的目录
+for root1, dirs1, file1 in os.walk(dir1):
+    for a in file1:
+        for root2, dirs2, file2 in os.walk(dir2):
+            for b in file2:
+                if os.path.join(a).split('_')[0] == os.path.join(b).split('_')[0]:
+                    print(os.path.join(dir2, b))
+                    shutil.copy(os.path.join(dir2, b), r'F:\Pycharm\yaya\reeg100')
