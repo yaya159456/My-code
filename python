@@ -1,0 +1,51 @@
+import pandas as pd
+import numpy as np
+from pandas import DataFrame, Series
+import os
+import scipy
+from scipy import stats
+import matplotlib  .pyplot  as plt
+timemark=pd.read_csv('timemark.csv' )
+timemark['姓名'] = timemark['姓名']+'.rod'
+def get_all_rod (dir_name):
+    '''读取所有rod文件'''
+    rod_files = []
+    if not os.path .isdir(dir_name ):
+        return rod_files
+    for i in os.listdir(dir_name):
+        if not os.path .isdir(i):
+            if i[-4:] == ".rod":
+                rod_files .append(i)
+    return rod_files
+def get_data_mark(file_name):
+    '''单个文件标记mark'''
+    f_a = pd.read_csv(open(file_name), encoding='gbk', engine='python', sep='|')
+    f_a.insert(2, '姓名', file_name)
+    f_a = pd.merge(f_a, timemark, how='left' )
+    f_a = f_a.fillna(method='ffill')
+    return ( f_a )
+if __name__== "__main__":
+    dir_name = r"F:\Pycharm\yaya\134"
+    rod_files = get_all_rod(dir_name )
+    data_sum = DataFrame(columns=['姓名', '时间'])
+    max_nums = []
+    max_sum = []
+    for i in rod_files:
+        file_name = i
+        max_num_i = get_data_mark(file_name)
+        data_sum = pd.concat([data_sum, max_num_i], sort=False, ignore_index=True)
+    data_sum = data_sum .dropna(subset=['mark'])
+    data_sum = data_sum .ix[:, ['姓名', 'mark', '疼痛指数', 'VAS']]
+    data_max = data_sum .groupby(['姓名', 'mark'], group_keys=False)['疼痛指数', 'VAS'].agg(['mean', 'median', 'max', 'min'])
+    data_max = DataFrame(data_max)
+    print(data_max)
+    print(scipy.stats.pearsonr(data_max['疼痛指数', 'mean'], data_max['VAS', 'mean']))
+    print(scipy.stats.pearsonr(data_max['疼痛指数', 'max'], data_max['VAS', 'max']))
+    print(scipy.stats.pearsonr(data_max['疼痛指数', 'median'], data_max['VAS', 'median']))
+    # data_max .to_excel('data_max.xlsx')
+    '''画个散点图'''
+    # plt.xlabel('Pi', fontsize=24)
+    # plt.ylabel('VAS', fontsize=24)
+    # plt.tick_params(axis='both', labelsize=15)
+    # plt.scatter(data_max ['疼痛指数'], data_max ['VAS'], linewidth=5);
+    # plt.show()
