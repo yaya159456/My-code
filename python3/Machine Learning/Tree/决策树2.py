@@ -96,4 +96,4 @@ graph.write_dot('tree_nine.dot')
 # graph.write_png('tree.png')
 graph.write_png("Tree_nine.png")
 #输出一下测试集的预测结果
-# print(clf.predict(x_test))
+print(clf.predict(x_test))
