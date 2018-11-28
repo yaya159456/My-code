@@ -57,8 +57,8 @@ def cm_plot(y, yp):
     for x in range(len(cm)): #数据标签
         for y in range(len(cm)):
             plt.annotate(cm[x, y], xy=(x, y), horizontalalignment='center', verticalalignment='center')
-    plt.ylabel('True label') #坐标轴标签
-    plt.xlabel('Predicted label') #坐标轴标签
+    plt.xlabel('True label') #坐标轴标签
+    plt.ylabel('Predicted label') #坐标轴标签
     return plt
 #函数调用
 cm_plot(y_test, clf.predict(x_test)).show()
