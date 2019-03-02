@@ -1,0 +1,170 @@
+global Path
+if sc.master[0:5] == "local":
+    Path = "file:/home/yaya/pythonwork/PythonProject"
+else:
+    Path = "hdfs://master:9000/user/yaya/"
+(1)
+from pyspark.mllib.recommendation import Rating, ALS, MatrixFactorizationModel
+
+model = ALS.train(ratingRDD, 10, 10, 0.01)
+
+model.recommendProducts(user=100, num=5)#推荐5个产品
+#向id为100这个用户推荐5个 返回（user，product，rating）
+
+model.predict(100,1141)#查询推荐评分
+#查询对用户100推荐1141产品的评分 返回：rating
+
+model.recommendUsers(product=1141, num=5)#推荐5个用户
+#向1141产品推荐5个客户 返回（user，product，rating）
+
+(2) spark mllib pipeline 
+row_df = sqlContext.read.format("csv").option("header","true")\
+	.option("delimiter","\t").load(Path+"data/train.tsv")
+print(row_df .count())
+print(row_df .printSchema())
+row_df.select('url','id','name').show(10)#选取列 查看前10项
+from pyspark.sql.functions import udf#导入用户自定义函数模块
+def replace_question(x):
+    return("0" if x=="?" else x)
+replace_question = udf(replace_question)
+
+from pyspark.sql.funtions import col
+import pyspark.sql.types
+df = row_df.select(['url','id'] + [replace_question(col(column)).cast("double")\
+	.alias(column) for column in row_df.columns[4:]])
+'''col(column) 读取字段数据并调用replace_question自定义函数 删除“？”
+   .cast("double")转换成double类型
+   .alias(column)更改列名为column 
+'''
+
+train_df,test_df = df.randomSplit([0.7,0.3])
+train_df.cache()
+test_df.cache()
+
+'''
+#####pipeline组件
+	（1）StringIndexer:将文字转成数字 类似categoryMap
+	（2）OneHotEncoder:将一个数值的分类特征字段转成多个字段的Vector
+	（3）VectorAssembler:将多个特征字段合成一个Vector的特征字段
+	（4）DecisionTreeClassifier:决策树分类
+(1)
+from pyspark.ml.feature import StringIndexer
+#inputCol:需要改变的列 outputCol ：生成的列
+categoryIndexer = StringIndexer(inputCol='alchemy_category', \
+			outputCol='alchemy_category_Index')
+categoryTransformer = categoryIndexer.fit(df)
+
+#查看 categoryTransformer 的内容
+for i in range(0, len(categoryTransformer.labels)):
+	print(str(i)+':'+categoryTransformer.labels[i])
+
+df1 = categoryTransformer.transform(train_df)
+#print(df.columns) #df1.select('','','').show(10)
+(2)
+from pyspark.ml.feature import OneHotEncoder
+encoder = OneHotEncoder(dropLast=False, 
+		inputCol='alchemy_category_Index',
+		outputCol='alchemy_category_IndexVec')
+df2 = encoder.transform(df1)
+#df2.select('','','').show(10)
+###展示结果为 SparesVector格式：（14,[3],[1.0]）：共14（0到13）个字段，第三个为1，其余是0
+(3)
+from pyspark.ml.feature import VectorAssembler
+#生成的14个字段加上原本第四个字段到倒数第二个字段的数值
+assemblerInputs = ['alcheny_category_IndexVec']+row_df.columns[4:-1]
+assembler = VectorAssembler(inputCols=assemblerInputs,
+		outputCol='features'(起名：features))
+df3 = assembler.transform(df2)
+#df3.select('feature').show(1) 也是SparesVector格式
+
+(4)
+from pyspark.ml.classification import DecisionTreeClassifier
+dt = DecisionTreeClassifier(labelCol='label', featureCol='features',
+		impurity='gini', maxDepth=10, maxBins=14)
+dt_model = dt.fit(df3)
+df4 = dt_model.transform(df3)
+'''
+#建立pipeline
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer,OneHotEncoder,VectorAssembler
+from pyspark.ml.classification import DecisionTreeClassifier
+
+stringIndexer = StringIndexer(inputCol='alchemy_category',
+				outputCol='alchemy_category_Index')
+encoder = OneHotEncoder(dropLast=False,inputCol='alchemy_category_Index',
+			output='alchemy_category_IndexVec')
+assemblerInputs = ['alchemy_category_IndexVec'] + row_df.columns[4:-1]
+assembler = VectorAssembler(inputCols=assemblerInputs, outputCol='features')
+dt = DecisionTreeClassifier(labelCol='label',featuresCol='features',impurity='gini',
+				maxDepth=10, maxBins=14)
+pipeline = Pipeline(stages=[stringIndexer, encoder, assembler, dt])
+
+#训练数据
+pipelineModel = pipeline.fit(train_df)
+#print(pipelineModel.stages[3].toDebugString) 
+#第三阶段是dt（模型），toDebugString转成规则查看
+
+#预测
+predicted = pipelineModel.transform(test_df)
+#perdicted.select('url','features','rawprediction','probability',
+			'label','prediction').show(10)
+#rawprediction：后续评估准确率  probability：预测结果0/1 probability:[0的概率,1的概率]
+
+#评估模型的准确率
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+evaluator = BinaryClassificationEvaluator(
+				rawPredictionCol='rawprediction',
+				labelCol='label',
+				metricName='areaUnderROC')
+perdictions = pipelineModel.transform(test_df)
+auc = evaluator.evaluate(predictions)
+#print(auc)
+
+#使用TrainValidation进行训练验证，找出最佳模型
+from pyspark.ml.tuning import ParamGridBuilder,TrainValidationSplit
+
+paramGrid = ParamGridBuilder().addGrid(dt.impurity, ['gini', 'entropy'])
+				.addGrid(dt.maxDepth, [5, 10, 15])
+				.addGrid(dt.maxBins, [10, 15, 20])
+				.build()
+'''
+estimator=dt:之前创建的DecisionTreeClassifier
+evaluator=evaluator:之前创建的BinaryClassifierEvaluator
+estimatorParamMaps=paramGrid:之前创建的ParamGridBuilder
+trainRatio=0.8:训练验证前会将数据按照8:2的比列分成训练数据和验证数据
+'''
+tvs = TrainValidtionSplit(estimator=dt, evaluator=evaluator,
+			estimatorParamMaps=paramGrid, trainRatio=0.8)
+tvs_pipeline = Pipeline(stages=[stringIndexer, encoder, assembler, tvs])#最后一阶段不同
+tvs_pipelineModel = tvs_pipeline.fit(train_df)
+
+	#查看最佳模型
+bestModel = tvs_pipelineModel.stages[3].bestModel
+print(bestModel.toDebugString[:500])#前500文字  也可以不加
+	#最佳模型的AUC
+prediction = tvs_pipelineModel.transform(test_df)
+auc = evaluator.evaluate(predictions)
+
+##################使用crossValidtion 交叉验证找出最佳模型
+from pyspark.ml.tuning import CrossValidator
+cv = CrossValidator(estimator=dt, evaluator=evaluator,
+			estimatorParamMaps=paramGrid, numFolds=3) #3折交叉验证
+cv_pipeline = Pipeline(stages=[stringIndexer, encoder, assembler, cv])
+cv_pipelineModel = cv_pipeline.fit(train_df)
+
+	#查看bestModel
+bestModel = cv_pipelineModel.stages[3].bestModel
+	#查看auc
+predictions = cv_pipelineModel.trainform(test_df)
+auc = evaluator.evaluate(predictions)
+
+
+
+###随机森林
+from pyspark.ml.classification import RandomForestClassifier
+rf = RandomForestClassifier(labelCol='label',
+				featuresCol='features', numTrees=10)#10颗数
+rfpipeline = Pipeline(stages=[stringIndexer, encoder, assembler, rf])
+rfpipelineModel = rfpipeline.fit(train_df)
+rfpredicted = rfpipelineModel.transform(test_df)
+evaluator.evaluate(rfpredicted)
