@@ -1,0 +1,6 @@
+
+流程：
+1.编写好.py 
+2.pycharm打开terminal cd到文件目录
+3.输入 pyinstaller -F [-p] [F:\Pycharm\venv\Lib\site-packages] read.py 
+  当py文件中用到私包时，加上-p 和包的路径 可从加载pandas地方查看，一般在Pycharm\venv\Lib\site-packages下 不加-p就会闪退，因为pandas等import失败
