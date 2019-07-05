@@ -4,3 +4,5 @@
 2.pycharm打开terminal cd到文件目录
 3.输入 pyinstaller -F [-p] [F:\Pycharm\venv\Lib\site-packages] read.py 
   当py文件中用到私包时，加上-p 和包的路径 可从加载pandas地方查看，一般在Pycharm\venv\Lib\site-packages下 不加-p就会闪退，因为pandas等import失败
+注意：有时包需要更新 也会闪退 常见：(1)pip install -U setuptools 更新一下 
+    (2)闪退时，用cmd运行，出错信息就会显示了，看看是import还是什么出错 cd到文件目录 输入： .\XXX.exe
