@@ -1,0 +1,10 @@
+import pandas as pd
+A = pd.DataFrame({'name': ['张三', '李四', '王二'], 'score': [60, 70, 80]})
+B = pd.DataFrame({'name': ['张三', '李四', '王二', '张三'], 'grade': ['足球', '篮球', '排球', '乒乓球']})
+#目的是要把张三的足球和乒乓球合并起来，如果是数值型，直接用聚合函数sum即可，面对字符串形式怎么办？
+print(A)
+print(B)
+C = B.groupby('name').agg({'grade': sum})######第一种方法，利用sum对字符串拼接，缺点是没有拼接符
+D = B.groupby('name').grade.agg(lambda x: x.str.cat(sep=','))######用x.str.cat 拼接，参数sep可以指定拼接符号
+print(C)
+print(D)
