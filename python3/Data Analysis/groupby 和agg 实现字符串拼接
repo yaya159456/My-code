@@ -6,5 +6,6 @@ print(A)
 print(B)
 C = B.groupby('name').agg({'grade': sum})######第一种方法，利用sum对字符串拼接，缺点是没有拼接符
 D = B.groupby('name').grade.agg(lambda x: x.str.cat(sep=','))######用x.str.cat 拼接，参数sep可以指定拼接符号
+E = B.groupby('name').apply(lambda x: ','.join(x['grade']))  #####用join拼接
 print(C)
 print(D)
